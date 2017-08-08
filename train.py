@@ -12,14 +12,16 @@ import time
 import datetime
 import data_helpers
 from text_cnn import TextCNN
-from tensorflow.contrib import learn
 
 # Parameters
 # ==================================================
 
 # Data loading params
 tf.flags.DEFINE_float("dev_sample_percentage", .1, "Percentage of the training data to use for validation")
-tf.flags.DEFINE_string("data_file", "./t.txt", "Data source.")
+tf.flags.DEFINE_string("data_file", "./traindata.txt", "Data source.")
+tf.flags.DEFINE_string("y_file", "./ydict.txt", "Data source.")
+tf.flags.DEFINE_integer("maxlen", 40, "max length of vector.")
+tf.flags.DEFINE_string("wordvec_file", './wordvec.txt', "Data source.")
 
 # Model Hyperparameters
 tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
@@ -49,7 +51,7 @@ print("")
 
 # Load data
 print("Loading data...")
-x, y = data_helpers.load_data_and_labels(FLAGS.data_file)
+x, y = data_helpers.load_data_and_labels(FLAGS.data_file, FLAGS.y_file, FLAGS.wordvec_file, FLAGS.maxlen)
 
 # Randomly shuffle data
 np.random.seed(10)
@@ -63,7 +65,6 @@ dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(len(y)))
 x_train, x_dev = x_shuffled[:dev_sample_index], x_shuffled[dev_sample_index:]
 y_train, y_dev = y_shuffled[:dev_sample_index], y_shuffled[dev_sample_index:]
 print("Train/Dev split: {:d}/{:d}".format(len(y_train), len(y_dev)))
-
 
 # Training
 # ==================================================

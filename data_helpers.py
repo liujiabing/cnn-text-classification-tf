@@ -8,10 +8,12 @@ sys.setdefaultencoding("utf-8")
 import re
 import os
 import numpy as np
-import conf
+import json
 from collections import defaultdict
 
 WORDVEC = defaultdict()
+YDICT = defaultdict()
+MAXLEN = 0
 
 def filter_text(txt):
     """
@@ -110,17 +112,19 @@ def str_fw2hw(ustr):
             retstr += cht
     return retstr
 
-def text2mat(text):
+def text2mat(text, wordvec_file=None, ydict_file=None):
     """
     convert text to matrix
     """
-    global WORDVEC
+    global WORDVEC, YDICT, MAXLEN
     mat = []
     if WORDVEC == defaultdict():
-        load_wordvec()
+        load_wordvec(wordvec_file)
+    if (YDICT == defaultdict() or MAXLEN == 0) and ydict_file != None:
+        load_ydict(ydict_file)
     txt = format_text(text).split()
     txt.reverse()
-    for i in range(conf.maxlen):
+    for i in range(MAXLEN):
         if i < len(txt):
             key = txt[i].encode('utf-8')
             if WORDVEC.has_key(key):
@@ -129,22 +133,31 @@ def text2mat(text):
         mat.append(WORDVEC['dnn_pad'])
     return mat
 
-def load_data_and_labels(data_file):
+def load_data_and_labels(data_file, y_file, wordvec_file, maxlen):
     """
     Loads data from file, splits the data into words and generates labels.
     Returns split sentences and labels.
     """
+    global MAXLEN
+    MAXLEN = maxlen
     lines = open(data_file, 'r').readlines()
+    y_tmp, maxvalue, ydict, y_dict = [], 0, defaultdict(), defaultdict()
     x = []
     for line in lines:
-        text = line.split('\t')[0].strip()
-        x.append(text2mat(text))
+        text, y = line.split('\t')
+        x.append(text2mat(text.strip(), wordvec_file, None))
+        y = int(y.strip())
+        if not y_dict.has_key(y):
+            ydict.update({maxvalue: y})
+            y_dict.update({y: maxvalue})
+            maxvalue += 1
+        y_tmp.append(y_dict[y])
+    print >>open(y_file, 'w'), str(maxlen) + '\n' + json.dumps(ydict)
 
-    y_tmp = [ int(_.strip().split('\t')[1]) for _ in lines ]
-    y, classes = [], max(y_tmp) + 1
-    if classes == 1:
+    y, classes = [], maxvalue
+    if classes <= 1:
         print >>sys.stderr, 'only one label...'
-        #sys.exit(0)
+        sys.exit(0)
     for c in y_tmp:
         y_i = [0 for _ in range(classes)]
         y_i[c] = 1
@@ -153,11 +166,23 @@ def load_data_and_labels(data_file):
 
     return [np.array(x, float), np.array(y, float)]
 
-def load_wordvec():
+def load_ydict(ydict_file):
+    """
+    load ydict and maxlen
+    """
+    global YDICT, MAXLEN
+    lines = open(ydict_file).readlines()
+    maxlen = int(lines[0].strip())
+    ydict = json.loads(lines[1].strip())
+    for key, value in ydict.iteritems():
+        YDICT.update({int(key): int(value)})
+    MAXLEN = maxlen
+
+def load_wordvec(wordvec_file):
     """
     load word vectors from google word2vec project
     """
-    lines = open(conf.wordvec).readlines()
+    lines = open(wordvec_file).readlines()
     for line in lines[2:]:
         key = line.strip().split()[0]
         value = [ float(_) for _ in line.strip().split()[1:] ]
@@ -183,3 +208,8 @@ def batch_iter(data, batch_size, num_epochs, shuffle=True):
             start_index = batch_num * batch_size
             end_index = min((batch_num + 1) * batch_size, data_size)
             yield shuffled_data[start_index:end_index]
+
+if __name__ == "__main__":
+    #global MAXLEN, YDICT
+    load_ydict('./ydict.txt')
+    print MAXLEN, YDICT
